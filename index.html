@@ -1,9 +1,324 @@
-<!DOCTYPE html>
-<html>
-  <head>
-    <meta http-equiv="refresh" content="0; url=https://docs.google.com/forms/d/e/1FAIpQLSeO9e7JWCyoUbeaTGiWwJQ_qPlLsy7YqDzPQJGqs2iP121Hww/viewform?usp=sharing&ouid=110081114815644334312">
-  </head>
-  <body>
-    <p>Redirecting...</p>
-  </body>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Lucky Draw</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  /* =========================================================
+     ONE PLACE TO EDIT — set these three and you're done.
+     ========================================================= */
+  :root{
+    --ink:#14162A;        /* page background      */
+    --ink-2:#1E2140;      /* panels               */
+    --paper:#F5F7FE;      /* the ticket           */
+    --pink:#FF3E6C;       /* spot colour 1        */
+    --blue:#3B6BFF;       /* spot colour 2        */
+    --text:#EDEFF8;
+    --muted:#9AA0C4;
+    --line:#31355E;
+  }
+
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:var(--ink);
+    color:var(--text);
+    font-family:"Space Grotesk",system-ui,sans-serif;
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding:clamp(20px,5vw,64px) 20px 48px;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  /* faint print grain */
+  body::before{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.5;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.035'/%3E%3C/svg%3E");
+  }
+  main{position:relative;z-index:1;width:100%;max-width:640px}
+
+  /* ---------- header ---------- */
+  .eyebrow{
+    font-size:.78rem;letter-spacing:.28em;text-transform:uppercase;
+    color:var(--blue);font-weight:700;margin:0 0 14px;
+  }
+  h1{
+    font-family:"Syne",sans-serif;font-weight:800;
+    font-size:clamp(2.6rem,10vw,4.6rem);line-height:.95;margin:0;
+    color:var(--paper);
+    text-shadow:3px 3px 0 var(--pink);   /* offset-print signature */
+    letter-spacing:-.01em;
+  }
+  .sub{color:var(--muted);margin:16px 0 0;max-width:42ch;font-size:1.02rem}
+
+  /* ---------- draw button ---------- */
+  .draw{
+    margin:36px 0 0;appearance:none;border:0;cursor:pointer;
+    font-family:"Syne",sans-serif;font-weight:800;font-size:1.35rem;
+    letter-spacing:.02em;color:var(--paper);
+    background:var(--pink);
+    padding:20px 40px;border-radius:14px;
+    box-shadow:6px 6px 0 var(--blue);
+    transition:transform .08s ease, box-shadow .08s ease;
+  }
+  .draw:hover{transform:translate(-1px,-1px);box-shadow:7px 7px 0 var(--blue)}
+  .draw:active{transform:translate(6px,6px);box-shadow:0 0 0 var(--blue)}
+  .draw:focus-visible{outline:3px solid var(--paper);outline-offset:3px}
+  .draw[disabled]{opacity:.55;cursor:progress}
+
+  /* ---------- ticket ---------- */
+  .ticket{
+    margin:34px 0 0;background:var(--paper);color:#171A2B;
+    border-radius:16px;display:grid;grid-template-columns:74px 1fr;
+    min-height:150px;overflow:hidden;position:relative;
+    box-shadow:0 24px 60px -28px rgba(0,0,0,.7);
+  }
+  /* perforation between stub and body */
+  .ticket::before{
+    content:"";position:absolute;left:74px;top:10px;bottom:10px;width:0;
+    border-left:2px dashed #C7CBE0;
+  }
+  .stub{
+    background:var(--blue);color:var(--paper);
+    display:flex;flex-direction:column;align-items:center;justify-content:space-between;
+    padding:16px 0;
+  }
+  .stub .lbl{
+    writing-mode:vertical-rl;transform:rotate(180deg);
+    font-family:"Syne",sans-serif;font-weight:800;letter-spacing:.3em;font-size:.8rem;
+  }
+  .stub .no{font-size:.72rem;font-weight:700;letter-spacing:.05em;opacity:.9}
+  .body{padding:22px 24px;display:flex;flex-direction:column;justify-content:center;gap:10px}
+  .field{display:flex;flex-direction:column;gap:2px}
+  .field .k{font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;color:#7A7FA6;font-weight:700}
+  .field .v{font-size:1.12rem;font-weight:500;word-break:break-word}
+  .ticket.spinning .body{opacity:.9}
+  .ticket.empty .body{color:#7A7FA6;font-size:.98rem}
+
+  /* ---------- controls & footer ---------- */
+  .controls{margin:22px 0 0;display:flex;flex-wrap:wrap;gap:18px 22px;align-items:center}
+  label.opt{display:flex;gap:9px;align-items:center;font-size:.92rem;color:var(--muted);cursor:pointer;user-select:none}
+  .opt input{accent-color:var(--pink);width:17px;height:17px}
+  .count{font-size:.9rem;color:var(--muted)}
+  .count b{color:var(--text)}
+  footer{margin:40px 0 0;font-size:.95rem;color:var(--muted)}
+  footer a{color:var(--text);text-decoration:none;border-bottom:2px solid var(--pink);padding-bottom:1px}
+  footer a:hover{color:var(--pink)}
+
+  .note{
+    margin:28px 0 0;background:var(--ink-2);border:1px solid var(--line);
+    border-radius:12px;padding:18px 20px;font-size:.92rem;color:var(--muted);display:none;
+  }
+  .note code{background:#000;color:#FFC0CF;padding:2px 6px;border-radius:5px;font-size:.85em}
+  .note.show{display:block}
+
+  @media (prefers-reduced-motion:reduce){
+    .draw,.ticket .body{transition:none}
+  }
+</style>
+</head>
+<body>
+<main>
+  <p class="eyebrow">Random pick</p>
+  <h1>Lucky Draw</h1>
+  <p class="sub" id="subtitle">Hit the button to pull one entry at random from the responses.</p>
+
+  <button class="draw" id="drawBtn">Draw one →</button>
+
+  <section class="ticket empty" id="ticket" aria-live="polite" aria-atomic="true">
+    <div class="stub">
+      <span class="lbl">DRAW</span>
+      <span class="no" id="ticketNo">#0000</span>
+    </div>
+    <div class="body" id="ticketBody">
+      Loading entries…
+    </div>
+  </section>
+
+  <div class="controls">
+    <label class="opt"><input type="checkbox" id="noRepeat" checked> No repeats until all are drawn</label>
+    <span class="count" id="count"></span>
+  </div>
+
+  <div class="note" id="note"></div>
+
+  <footer>
+    Want in? <a id="formLink" href="#" target="_blank" rel="noopener">Add your response</a>
+  </footer>
+</main>
+
+<script>
+/* =========================================================
+   CONFIG — edit these two lines.
+   1) csvUrl : your Google Sheet "Publish to web" CSV link.
+   2) formUrl: the public form link (already filled in).
+   Optional: displayColumns / hideColumns to control what
+   shows on the ticket. Leave displayColumns empty to show
+   every column except the ones in hideColumns.
+   ========================================================= */
+const CONFIG = {
+  csvUrl: "https://docs.google.com/spreadsheets/d/e/2PACX-1vTTcJZ3R0jdkLvXbm0DT81B2mErIgYw8-18E7tn8hnGIPyyL7aKbES00EFNOMQuO4B2VgjStm1lD0Ku/pub?gid=427803554&single=true&output=csv",                                             // <-- paste your published CSV URL here
+  formUrl: "https://forms.gle/CjMLTQuf5oSJFQcr6",
+  displayColumns: [],                                     // e.g. ["Name"] to show only that column
+  hideColumns: ["Timestamp"]                              // hidden from the ticket
+};
+
+/* ---------- elements ---------- */
+const els = {
+  btn: document.getElementById("drawBtn"),
+  ticket: document.getElementById("ticket"),
+  body: document.getElementById("ticketBody"),
+  no: document.getElementById("ticketNo"),
+  count: document.getElementById("count"),
+  note: document.getElementById("note"),
+  formLink: document.getElementById("formLink"),
+};
+els.formLink.href = CONFIG.formUrl || "#";
+const reduceMotion = matchMedia("(prefers-reduced-motion:reduce)").matches;
+
+let headers = [];
+let entries = [];     // array of row objects
+let pool = [];        // remaining picks when "no repeats" is on
+let lastIndex = -1;
+
+/* ---------- data loading ---------- */
+init();
+
+async function init(){
+  if(!CONFIG.csvUrl){
+    setupNote();
+    els.body.textContent = "No data source connected yet.";
+    els.btn.disabled = true;
+    return;
+  }
+  try{
+    const res = await fetch(CONFIG.csvUrl, {cache:"no-store"});
+    if(!res.ok) throw new Error("HTTP " + res.status);
+    const rows = parseCSV(await res.text()).filter(r => r.some(c => c.trim() !== ""));
+    if(rows.length < 2) throw new Error("empty");
+    headers = rows[0];
+    entries = rows.slice(1).map(r => Object.fromEntries(headers.map((h,i)=>[h, r[i] ?? ""])));
+    refreshCount();
+    els.ticket.classList.remove("empty");
+    els.body.textContent = "Ready — press Draw one.";
+    els.btn.disabled = false;
+  }catch(err){
+    els.body.textContent = "Couldn't load the responses.";
+    errorNote(err.message);
+    els.btn.disabled = true;
+  }
+}
+
+function refreshCount(){
+  els.count.innerHTML = `<b>${entries.length}</b> ${entries.length===1?"entry":"entries"}`;
+}
+
+/* ---------- drawing ---------- */
+els.btn.addEventListener("click", draw);
+
+function pickIndex(){
+  const noRepeat = document.getElementById("noRepeat").checked;
+  if(noRepeat){
+    if(pool.length === 0) pool = shuffle([...entries.keys()]);
+    return pool.pop();
+  }
+  // simple random, avoid the immediate repeat when possible
+  let i = Math.floor(Math.random()*entries.length);
+  if(entries.length > 1 && i === lastIndex) i = (i+1) % entries.length;
+  return i;
+}
+
+async function draw(){
+  if(!entries.length) return;
+  els.btn.disabled = true;
+  const finalIndex = pickIndex();
+  lastIndex = finalIndex;
+  els.no.textContent = "#" + String(finalIndex+1).padStart(4,"0");
+
+  if(reduceMotion){
+    render(entries[finalIndex]);
+  }else{
+    els.ticket.classList.add("spinning");
+    const key = displayKeys()[0];
+    const start = performance.now(), dur = 900;
+    await new Promise(resolve=>{
+      function tick(now){
+        const t = (now-start)/dur;
+        if(t < 1){
+          const flash = entries[Math.floor(Math.random()*entries.length)];
+          els.body.innerHTML = `<div class="field"><span class="v">${escapeHtml(flash[key]||"…")}</span></div>`;
+          // ease-out: slow the flashes near the end
+          setTimeout(()=>requestAnimationFrame(tick), 40 + t*t*150);
+        }else resolve();
+      }
+      requestAnimationFrame(tick);
+    });
+    els.ticket.classList.remove("spinning");
+    render(entries[finalIndex]);
+  }
+  els.btn.disabled = false;
+}
+
+function displayKeys(){
+  if(CONFIG.displayColumns.length) return CONFIG.displayColumns.filter(k=>headers.includes(k));
+  return headers.filter(h => !CONFIG.hideColumns.includes(h));
+}
+
+function render(row){
+  const keys = displayKeys();
+  els.body.innerHTML = keys.map(k=>`
+    <div class="field">
+      <span class="k">${escapeHtml(k)}</span>
+      <span class="v">${escapeHtml(row[k] || "—")}</span>
+    </div>`).join("");
+}
+
+/* ---------- helpers ---------- */
+function shuffle(a){
+  for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}
+  return a;
+}
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+/* RFC-4180-ish CSV parser: handles quotes, commas and newlines inside fields */
+function parseCSV(text){
+  const rows=[]; let row=[], field="", inQ=false, i=0;
+  while(i<text.length){
+    const c=text[i];
+    if(inQ){
+      if(c==='"'){ if(text[i+1]==='"'){field+='"';i+=2;continue;} inQ=false;i++;continue; }
+      field+=c;i++;continue;
+    }
+    if(c==='"'){inQ=true;i++;continue;}
+    if(c===','){row.push(field);field="";i++;continue;}
+    if(c==='\r'){i++;continue;}
+    if(c==='\n'){row.push(field);rows.push(row);row=[];field="";i++;continue;}
+    field+=c;i++;
+  }
+  if(field.length||row.length){row.push(field);rows.push(row);}
+  return rows;
+}
+
+function setupNote(){
+  els.note.classList.add("show");
+  els.note.innerHTML = `<b>Almost there.</b> Open the sheet linked to your form, choose
+    <i>File → Share → Publish to web → CSV</i>, then paste that link into
+    <code>CONFIG.csvUrl</code> at the top of the script.`;
+}
+function errorNote(msg){
+  els.note.classList.add("show");
+  els.note.innerHTML = `<b>Load failed${msg?` (${escapeHtml(msg)})`:""}.</b>
+    Check that the sheet is published to the web as CSV and that the link in
+    <code>CONFIG.csvUrl</code> is the published link (it contains <code>/pub</code>).`;
+}
+</script>
+</body>
 </html>
+
