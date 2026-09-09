@@ -1,9 +1,82 @@
 <!DOCTYPE html>
-<html>
-  <head>
-    <meta http-equiv="refresh" content="0; url=https://arxiv.org/abs/2605.22248">
-  </head>
-  <body>
-    <p>Redirecting...</p>
-  </body>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Glasto Ticket Ring</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header>
+  <h1>🎪 Glasto Ticket Ring</h1>
+  <p>Sign up, get grouped, and see the chain order.</p>
+</header>
+
+<div id="gate" class="card" style="max-width:640px;margin:16px auto;">
+  <label>Group codeword</label>
+  <label class="sub">Ask whoever organised this for the shared codeword.</label>
+  <input type="password" id="gate-secret" placeholder="Codeword">
+  <button class="primary" id="gate-submit">Continue</button>
+  <p id="gate-error" class="notice danger" style="display:none;">Wrong codeword, try again.</p>
+</div>
+
+<div id="app" style="display:none;">
+  <nav class="tabs">
+    <button id="tab-signup" class="active">Sign up</button>
+    <button id="tab-groups">Groups &amp; ring</button>
+  </nav>
+
+  <main>
+    <section id="view-signup" class="view active">
+      <div class="card">
+        <div id="signup-status"></div>
+        <form id="signup-form">
+          <label>Your full name</label>
+          <label class="sub">Type it exactly how your friends will type it when they list you.</label>
+          <input type="text" id="fullName" required>
+
+          <label>Email (optional, for reminders)</label>
+          <input type="email" id="email">
+
+          <label>Glastonbury registration number</label>
+          <input type="text" id="regNumber" required>
+
+          <label>Your 5 group members</label>
+          <label class="sub">Their full names, exactly as they'll type them themselves.</label>
+          <div id="groupmates-rows"></div>
+          <button type="button" class="add-row" id="add-groupmate">+ add name</button>
+
+          <label style="margin-top:18px;">Who else do you know well? (optional)</label>
+          <label class="sub">People signing up in OTHER groups — this decides who your group sits next to in the chain.</label>
+          <div id="known-rows"></div>
+          <button type="button" class="add-row" id="add-known">+ add name</button>
+
+          <button type="submit" class="primary">Submit</button>
+        </form>
+      </div>
+    </section>
+
+    <section id="view-groups" class="view">
+      <div class="card">
+        <div class="actions-row">
+          <button class="secondary" id="refresh-btn">Refresh data</button>
+          <button class="secondary" id="export-btn">Export tracker CSV</button>
+        </div>
+        <div id="groups-summary"></div>
+      </div>
+      <div id="groups-list"></div>
+      <div class="card">
+        <h3 style="margin-top:0;">Ring order</h3>
+        <p style="color:var(--muted);font-size:0.85rem;">Spare tickets pass rightward (wrapping back to the top) to the next group that still needs one.</p>
+        <ul class="ring-list" id="ring-list"></ul>
+      </div>
+    </section>
+  </main>
+</div>
+
+<footer>Data lives in a Google Sheet behind a small Apps Script backend — see the repo README for setup.</footer>
+
+<script src="app.js"></script>
+</body>
 </html>
