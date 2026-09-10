@@ -32,15 +32,24 @@ function doPost(e) {
       .setMimeType(ContentService.MimeType.JSON);
   }
   const sheet = getSheet_();
-  sheet.appendRow([
-    new Date(),
-    body.fullName || '',
-    body.regNumber || '',
-    body.postcode || '',
-    body.groupCode || '',
-    body.wantsCoach || '',
-    (body.known || []).join(' | '),
-  ]);
+  // Write by header NAME, not position — the sheet's existing header row was
+  // created by an older schema, so appending positionally filed values under the
+  // wrong columns (postcode landing in GroupCode, etc). Mapping by name is
+  // immune to column order/renames.
+  const record = {
+    Timestamp: new Date(),
+    FullName: body.fullName || '',
+    RegNumber: body.regNumber || '',
+    Postcode: body.postcode || '',
+    GroupCode: body.groupCode || '',
+    WantsCoach: body.wantsCoach || '',
+    Known: (body.known || []).join(' | '),
+  };
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const row = headers.map(function (h) {
+    return Object.prototype.hasOwnProperty.call(record, h) ? record[h] : '';
+  });
+  sheet.appendRow(row);
   return ContentService
     .createTextOutput(JSON.stringify({ status: 'ok' }))
     .setMimeType(ContentService.MimeType.JSON);
