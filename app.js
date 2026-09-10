@@ -211,6 +211,7 @@ document.querySelectorAll(".action-btn").forEach((btn) => {
     document.getElementById("action-picker").style.display = "none";
     document.getElementById("signup-form-card").style.display = "block";
     document.getElementById("group-name-field").style.display = currentAction === "start" ? "block" : "none";
+    document.getElementById("coach-field").style.display = currentAction === "start" ? "block" : "none";
     document.getElementById("group-join-field").style.display = currentAction === "join" ? "block" : "none";
     if (currentAction === "join") await populateGroupSelect();
   });
@@ -295,11 +296,16 @@ document.getElementById("signup-form").addEventListener("submit", async (e) => {
     }
   }
 
+  // only the group founder decides this — it applies to the whole group, joiners don't get asked
+  const wantsCoach = currentAction === "start" ? (document.getElementById("wantsCoach").checked ? "Yes" : "No") : "";
+
   const payload = {
     secret: SHARED_SECRET,
     fullName: document.getElementById("fullName").value.trim(),
     regNumber: document.getElementById("regNumber").value.trim(),
+    postcode: document.getElementById("postcode").value.trim(),
     groupCode,
+    wantsCoach,
     known: collectRowValues("known-rows"),
   };
 
@@ -373,14 +379,17 @@ function groupByCode(responses) {
     const member = {
       fullName: r.FullName || r.fullName,
       regNumber: r.RegNumber || r.regNumber,
+      postcode: r.Postcode || r.postcode || "",
       known: String(r.Known || "").split("|").map((s) => s.trim()).filter(Boolean),
     };
+    const wantsCoach = String(r.WantsCoach || r.wantsCoach || "").trim();
     if (!rawCode) {
       unplaced.push(member);
       return;
     }
     const key = normalize(rawCode);
-    if (!map.has(key)) map.set(key, { code: key, displayName: rawCode, members: [] });
+    if (!map.has(key)) map.set(key, { code: key, displayName: rawCode, members: [], wantsCoach: "" });
+    if (wantsCoach) map.get(key).wantsCoach = wantsCoach; // set by whoever started the group
     map.get(key).members.push(member);
   });
 
@@ -462,6 +471,12 @@ function renderGroups(groups, unplaced) {
     if (g.members.length === 6) tag = '<span class="tag">complete</span>';
     if (g.members.length > 6) tag = '<span class="tag pending" style="background:var(--danger-bg);color:var(--danger-text);">too many — check for a name clash</span>';
     block.innerHTML = `<h3>${escapeHtml(g.displayName)} ${tag}</h3>`;
+    if (g.wantsCoach) {
+      const coachRow = document.createElement("div");
+      coachRow.className = "member-row";
+      coachRow.innerHTML = `<span>🚌 Coach tickets</span><span>${escapeHtml(g.wantsCoach)}</span>`;
+      block.appendChild(coachRow);
+    }
     g.members.forEach((m) => {
       const row = document.createElement("div");
       row.className = "member-row";

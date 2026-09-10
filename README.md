@@ -28,15 +28,20 @@ check the row lands in your Sheet.
 
 ## Updating an already-deployed backend
 
-If you'd already deployed `Code.gs` before this version (the group-matching scheme
-changed from free-text "list your groupmates" to explicit start/join a group, and
-email collection was later dropped entirely):
+The `Responses` sheet's header row (row 1) must match `doPost`'s column order in
+`backend/Code.gs` **exactly** — `doGet` reads data back by matching header text to
+column position, so a missing or misordered header silently scrambles every field.
+The current column order is:
+
+`Timestamp | FullName | RegNumber | Postcode | GroupCode | WantsCoach | Known`
+
+If you'd already deployed an older version:
 
 1. Paste the updated [`backend/Code.gs`](backend/Code.gs) over your script.
-2. In your Sheet's `Responses` tab, rename column E's header from `Groupmates` to
-   `GroupCode`, delete the `Email` column entirely (columns will shift left — that's
-   fine, `doGet` maps by header name, not position), and delete any test rows from
-   before (their data won't line up with the new columns).
+2. Make row 1 of the `Responses` tab exactly match the header list above — add a row
+   above your data if it's missing entirely, add any new columns (`Postcode`,
+   `WantsCoach`), remove old ones (`Email`, `Groupmates`), and delete any test rows
+   that predate the current schema.
 3. Deploy → Manage deployments → edit (pencil icon) → Version: **New version** → Deploy.
    Editing the script alone does *not* update the live `/exec` URL — you need this step,
    but the URL itself stays the same, so `app.js` doesn't need to change.

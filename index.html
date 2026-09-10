@@ -110,6 +110,14 @@
             <input type="text" id="groupName">
           </div>
 
+          <div id="coach-field" style="display:none;">
+            <label class="checkbox-label">
+              <input type="checkbox" id="wantsCoach">
+              Happy for coach tickets for the whole group?
+            </label>
+            <label class="sub">It will apply to all 6 of you.</label>
+          </div>
+
           <div id="group-join-field" style="display:none;">
             <label>Choose your group</label>
             <select id="groupSelect"></select>
@@ -121,6 +129,10 @@
 
           <label>Glastonbury registration number</label>
           <input type="text" id="regNumber" required>
+
+          <label>Postcode</label>
+          <!-- <label class="sub">Helps whoever's picking a coach pickup point.</label> -->
+          <input type="text" id="postcode" required>
 
           <label style="margin-top:18px;">Who else do you know well? (optional)</label>
           <label class="sub">People signing up in OTHER groups — this decides who your group sits next to in the chain.</label>

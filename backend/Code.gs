@@ -36,7 +36,9 @@ function doPost(e) {
     new Date(),
     body.fullName || '',
     body.regNumber || '',
+    body.postcode || '',
     body.groupCode || '',
+    body.wantsCoach || '',
     (body.known || []).join(' | '),
   ]);
   return ContentService
@@ -49,7 +51,7 @@ function getSheet_() {
   let sheet = ss.getSheetByName(SHEET_NAME);
   if (!sheet) {
     sheet = ss.insertSheet(SHEET_NAME);
-    sheet.appendRow(['Timestamp', 'FullName', 'RegNumber', 'GroupCode', 'Known']);
+    sheet.appendRow(['Timestamp', 'FullName', 'RegNumber', 'Postcode', 'GroupCode', 'WantsCoach', 'Known']);
   }
   return sheet;
 }
