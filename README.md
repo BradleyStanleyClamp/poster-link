@@ -1,9 +1,11 @@
 # Glasto Ticket Ring
 
 Static sign-up + auto-grouping page (this GitHub Pages site) backed by a Google Sheet.
-People submit their name, reg number, and their group of 6 / who they know elsewhere;
-the page clusters everyone into groups of 6 and works out a "ring" order — groups placed
-next to people they already know — for passing spare tickets round on sale day.
+People submit their name, reg number, and either start a group, join a friend's group,
+or sign up solo to be placed later — plus (optionally) who they know in other groups.
+The page groups people by which pod they explicitly joined and works out a "ring"
+order — groups placed next to people they already know — for passing spare tickets
+round on sale day.
 
 ## One-time setup
 
@@ -23,6 +25,19 @@ next to people they already know — for passing spare tickets round on sale day
 
 Test it by opening the page, entering the codeword, and submitting a dummy sign-up —
 check the row lands in your Sheet.
+
+## Updating an already-deployed backend
+
+If you'd already deployed `Code.gs` before this version (the group-matching scheme
+changed from free-text "list your groupmates" to explicit start/join a group):
+
+1. Paste the updated [`backend/Code.gs`](backend/Code.gs) over your script.
+2. In your Sheet's `Responses` tab, rename column E's header from `Groupmates` to
+   `GroupCode`, and delete any test rows you'd submitted under the old scheme (their
+   data won't line up with the new columns).
+3. Deploy → Manage deployments → edit (pencil icon) → Version: **New version** → Deploy.
+   Editing the script alone does *not* update the live `/exec` URL — you need this step,
+   but the URL itself stays the same, so `app.js` doesn't need to change.
 
 ## Notes on the codeword
 

@@ -1,7 +1,9 @@
 // ====== CONFIG — set these after you deploy the Apps Script backend (see README.md) ======
-const SCRIPT_URL = "REPLACE_WITH_YOUR_APPS_SCRIPT_WEB_APP_URL";
-const SHARED_SECRET = "REPLACE_WITH_A_CODEWORD"; // must match SECRET in backend/Code.gs
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbywfyg2WPJfLd9n7ZaL9xp_5jXb1i2lknC0uBjiZ93t-ZHzaiZa6zLzRmgb9cqKqhYtbA/exec";
+const SHARED_SECRET = "glasto"; // must match SECRET in backend/Code.gs
 // ===========================================================================================
+
+const MAX_KNOWN = 8;
 
 // ---------- gate ----------
 const gateEl = document.getElementById("gate");
@@ -49,9 +51,62 @@ function switchTab(name) {
   viewGroups.classList.toggle("active", !isSignup);
 }
 
-// ---------- dynamic name rows ----------
+// ---------- escaping ----------
+function escapeHtml(str) {
+  return String(str || "").replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  }[c]));
+}
+
+// ---------- action picker (solo / start / join) ----------
+let currentAction = null; // 'solo' | 'start' | 'join'
+
+document.querySelectorAll(".action-btn").forEach((btn) => {
+  btn.addEventListener("click", async () => {
+    currentAction = btn.dataset.action;
+    document.getElementById("action-picker").style.display = "none";
+    document.getElementById("signup-form-card").style.display = "block";
+    document.getElementById("group-name-field").style.display = currentAction === "start" ? "block" : "none";
+    document.getElementById("group-join-field").style.display = currentAction === "join" ? "block" : "none";
+    if (currentAction === "join") await populateGroupSelect();
+  });
+});
+
+document.getElementById("back-to-picker").addEventListener("click", () => {
+  currentAction = null;
+  document.getElementById("action-picker").style.display = "block";
+  document.getElementById("signup-form-card").style.display = "none";
+});
+
+document.getElementById("refresh-groups").addEventListener("click", populateGroupSelect);
+
+async function populateGroupSelect() {
+  const select = document.getElementById("groupSelect");
+  select.innerHTML = `<option>Loading…</option>`;
+  try {
+    const responses = await fetchResponses();
+    const { groups } = groupByCode(responses);
+    const open = groups.filter((g) => g.members.length < 6);
+    if (open.length === 0) {
+      select.innerHTML = `<option value="">No open groups yet — pick "Start a group" instead</option>`;
+      return;
+    }
+    select.innerHTML = open
+      .map((g) => `<option value="${escapeHtml(g.displayName)}">${escapeHtml(g.displayName)} (${g.members.length}/6)</option>`)
+      .join("");
+  } catch (err) {
+    select.innerHTML = `<option value="">Couldn't load groups (${err.message})</option>`;
+  }
+}
+
+// ---------- dynamic "known" rows (capped) ----------
 function addRow(containerId, placeholder, required) {
   const container = document.getElementById(containerId);
+  if (containerId === "known-rows" && container.children.length >= MAX_KNOWN) return;
   const row = document.createElement("div");
   row.className = "multi-row";
   const input = document.createElement("input");
@@ -67,12 +122,8 @@ function addRow(containerId, placeholder, required) {
   container.appendChild(row);
 }
 
-for (let i = 0; i < 5; i++) addRow("groupmates-rows", "Groupmate full name", true);
 addRow("known-rows", "Name in another group (optional)", false);
 
-document.getElementById("add-groupmate").addEventListener("click", () =>
-  addRow("groupmates-rows", "Groupmate full name", true)
-);
 document.getElementById("add-known").addEventListener("click", () =>
   addRow("known-rows", "Name in another group (optional)", false)
 );
@@ -89,19 +140,29 @@ document.getElementById("signup-form").addEventListener("submit", async (e) => {
   const statusEl = document.getElementById("signup-status");
   statusEl.innerHTML = "";
 
+  let groupCode = "";
+  if (currentAction === "start") {
+    groupCode = document.getElementById("groupName").value.trim();
+    if (!groupCode) {
+      statusEl.innerHTML = `<div class="notice danger">Give your group a name.</div>`;
+      return;
+    }
+  } else if (currentAction === "join") {
+    groupCode = document.getElementById("groupSelect").value;
+    if (!groupCode) {
+      statusEl.innerHTML = `<div class="notice danger">Choose a group to join.</div>`;
+      return;
+    }
+  }
+
   const payload = {
     secret: SHARED_SECRET,
     fullName: document.getElementById("fullName").value.trim(),
     email: document.getElementById("email").value.trim(),
     regNumber: document.getElementById("regNumber").value.trim(),
-    groupmates: collectRowValues("groupmates-rows"),
+    groupCode,
     known: collectRowValues("known-rows"),
   };
-
-  if (payload.groupmates.length !== 5) {
-    statusEl.innerHTML = `<div class="notice danger">Please list exactly 5 other group members.</div>`;
-    return;
-  }
 
   try {
     const res = await fetch(SCRIPT_URL, {
@@ -111,12 +172,11 @@ document.getElementById("signup-form").addEventListener("submit", async (e) => {
     });
     const data = await res.json();
     if (data.error) throw new Error(data.error);
-    statusEl.innerHTML = `<div class="notice ok">Thanks ${payload.fullName}, you're in. Check the "Groups & ring" tab to see your group form.</div>`;
+    statusEl.innerHTML = `<div class="notice ok">Thanks ${escapeHtml(payload.fullName)}, you're in. Check the "Groups & ring" tab to see your group form.</div>`;
     document.getElementById("signup-form").reset();
-    document.getElementById("groupmates-rows").innerHTML = "";
     document.getElementById("known-rows").innerHTML = "";
-    for (let i = 0; i < 5; i++) addRow("groupmates-rows", "Groupmate full name", true);
     addRow("known-rows", "Name in another group (optional)", false);
+    document.getElementById("back-to-picker").click();
   } catch (err) {
     statusEl.innerHTML = `<div class="notice danger">Couldn't submit (${err.message}). Ask the organiser to check the backend is deployed.</div>`;
   }
@@ -157,78 +217,48 @@ function normalize(name) {
   return (name || "").trim().toLowerCase().replace(/\s+/g, " ");
 }
 
-// ---------- clustering: group people into pods of 6 via union-find on "groupmates" claims ----------
-function buildGroups(responses) {
-  const parent = new Map();
-  function find(x) {
-    if (!parent.has(x)) parent.set(x, x);
-    while (parent.get(x) !== x) x = parent.get(x);
-    return x;
-  }
-  function union(a, b) {
-    const ra = find(a), rb = find(b);
-    if (ra !== rb) parent.set(ra, rb);
-  }
-
-  const byName = new Map(); // normalized name -> response
-  responses.forEach((r) => byName.set(normalize(r.FullName || r.fullName), r));
+// ---------- grouping: explicit GroupCode from start/join, no name-guessing ----------
+function groupByCode(responses) {
+  const map = new Map(); // normalized code -> { code, displayName, members }
+  const unplaced = [];
 
   responses.forEach((r) => {
-    const self = normalize(r.FullName || r.fullName);
-    find(self);
-    const mates = String(r.Groupmates || "").split("|").map((s) => normalize(s)).filter(Boolean);
-    mates.forEach((m) => union(self, m));
+    const rawCode = String(r.GroupCode || r.groupCode || "").trim();
+    const member = {
+      fullName: r.FullName || r.fullName,
+      regNumber: r.RegNumber || r.regNumber,
+      email: r.Email || r.email,
+      known: String(r.Known || "").split("|").map((s) => s.trim()).filter(Boolean),
+    };
+    if (!rawCode) {
+      unplaced.push(member);
+      return;
+    }
+    const key = normalize(rawCode);
+    if (!map.has(key)) map.set(key, { code: key, displayName: rawCode, members: [] });
+    map.get(key).members.push(member);
   });
 
-  const clusters = new Map(); // root -> Set of normalized names
-  Array.from(parent.keys()).forEach((name) => {
-    const root = find(name);
-    if (!clusters.has(root)) clusters.set(root, new Set());
-    clusters.get(root).add(name);
-  });
-
-  const groups = [];
-  let gid = 1;
-  clusters.forEach((nameSet) => {
-    const members = Array.from(nameSet).map((n) => {
-      const resp = byName.get(n);
-      return resp
-        ? {
-            fullName: resp.FullName || resp.fullName,
-            regNumber: resp.RegNumber || resp.regNumber,
-            email: resp.Email || resp.email,
-            known: String(resp.Known || "").split("|").map((s) => s.trim()).filter(Boolean),
-            matched: true,
-          }
-        : { fullName: n, matched: false };
-    });
-    groups.push({ id: "g" + gid++, members });
-  });
-
-  // stable-ish order: bigger/more-complete groups first
-  groups.sort((a, b) => b.members.filter((m) => m.matched).length - a.members.filter((m) => m.matched).length);
-  return groups;
+  return { groups: Array.from(map.values()), unplaced };
 }
 
 // ---------- ring building: greedy nearest-neighbour on "known" links between groups ----------
 function buildKnownWeights(groups) {
   const nameToGroup = new Map();
   groups.forEach((g) =>
-    g.members.forEach((m) => {
-      if (m.matched) nameToGroup.set(normalize(m.fullName), g.id);
-    })
+    g.members.forEach((m) => nameToGroup.set(normalize(m.fullName), g.code))
   );
 
   const weight = {};
   groups.forEach((g) => {
     g.members.forEach((m) => {
       (m.known || []).forEach((k) => {
-        const otherGid = nameToGroup.get(normalize(k));
-        if (otherGid && otherGid !== g.id) {
-          weight[g.id] = weight[g.id] || {};
-          weight[g.id][otherGid] = (weight[g.id][otherGid] || 0) + 1;
-          weight[otherGid] = weight[otherGid] || {};
-          weight[otherGid][g.id] = (weight[otherGid][g.id] || 0) + 1;
+        const otherCode = nameToGroup.get(normalize(k));
+        if (otherCode && otherCode !== g.code) {
+          weight[g.code] = weight[g.code] || {};
+          weight[g.code][otherCode] = (weight[g.code][otherCode] || 0) + 1;
+          weight[otherCode] = weight[otherCode] || {};
+          weight[otherCode][g.code] = (weight[otherCode][g.code] || 0) + 1;
         }
       });
     });
@@ -237,25 +267,25 @@ function buildKnownWeights(groups) {
 }
 
 function buildRing(groups, weight) {
-  const ids = groups.map((g) => g.id);
-  if (ids.length === 0) return [];
-  const visited = new Set([ids[0]]);
-  const order = [{ id: ids[0], bridge: false }];
+  const codes = groups.map((g) => g.code);
+  if (codes.length === 0) return [];
+  const visited = new Set([codes[0]]);
+  const order = [{ code: codes[0], bridge: false }];
 
-  while (order.length < ids.length) {
-    const current = order[order.length - 1].id;
+  while (order.length < codes.length) {
+    const current = order[order.length - 1].code;
     const neighbours = weight[current] || {};
     let best = null,
       bestW = -1;
-    Object.entries(neighbours).forEach(([nid, w]) => {
-      if (!visited.has(nid) && w > bestW) {
-        best = nid;
+    Object.entries(neighbours).forEach(([code, w]) => {
+      if (!visited.has(code) && w > bestW) {
+        best = code;
         bestW = w;
       }
     });
     const bridge = best === null;
-    if (bridge) best = ids.find((id) => !visited.has(id));
-    order.push({ id: best, bridge });
+    if (bridge) best = codes.find((code) => !visited.has(code));
+    order.push({ code: best, bridge });
     visited.add(best);
   }
   return order;
@@ -263,46 +293,63 @@ function buildRing(groups, weight) {
 
 // ---------- rendering ----------
 function groupLabel(members) {
-  return members.map((m) => m.fullName).join(", ");
+  return members.map((m) => escapeHtml(m.fullName)).join(", ");
 }
 
-function renderGroups(groups) {
+function renderGroups(groups, unplaced) {
   const listEl = document.getElementById("groups-list");
   const summaryEl = document.getElementById("groups-summary");
-  const complete = groups.filter((g) => g.members.length === 6 && g.members.every((m) => m.matched));
-  const partial = groups.filter((g) => !(g.members.length === 6 && g.members.every((m) => m.matched)));
+  const complete = groups.filter((g) => g.members.length === 6);
+  const forming = groups.filter((g) => g.members.length < 6);
+  const oversized = groups.filter((g) => g.members.length > 6);
 
-  summaryEl.innerHTML = `<div class="notice ${partial.length ? "warn" : "ok"}">
-    ${complete.length} complete group${complete.length === 1 ? "" : "s"} (${complete.length * 6} people ready),
-    ${partial.length} still forming.
-  </div>`;
+  const parts = [`${complete.length} complete group${complete.length === 1 ? "" : "s"} (${complete.length * 6} people ready)`];
+  if (forming.length) parts.push(`${forming.length} still forming`);
+  if (oversized.length) parts.push(`${oversized.length} oversized — needs checking`);
+  if (unplaced.length) parts.push(`${unplaced.length} not yet in a group`);
+  summaryEl.innerHTML = `<div class="notice ${oversized.length ? "danger" : forming.length || unplaced.length ? "warn" : "ok"}">${parts.join(", ")}.</div>`;
 
   listEl.innerHTML = "";
-  groups.forEach((g, idx) => {
+  groups.forEach((g) => {
     const block = document.createElement("div");
     block.className = "group-block";
-    const isComplete = g.members.length === 6 && g.members.every((m) => m.matched);
-    block.innerHTML = `<h3>Group ${idx + 1} ${isComplete ? '<span class="tag">complete</span>' : '<span class="tag pending">forming</span>'}</h3>`;
+    let tag = '<span class="tag pending">forming</span>';
+    if (g.members.length === 6) tag = '<span class="tag">complete</span>';
+    if (g.members.length > 6) tag = '<span class="tag pending" style="background:var(--danger-bg);color:var(--danger-text);">too many — check for a name clash</span>';
+    block.innerHTML = `<h3>${escapeHtml(g.displayName)} ${tag}</h3>`;
     g.members.forEach((m) => {
       const row = document.createElement("div");
       row.className = "member-row";
-      if (m.matched) {
-        row.innerHTML = `<span>${m.fullName}</span><span>${m.regNumber || "no reg #"}</span>`;
-      } else {
-        row.innerHTML = `<span class="missing">${m.fullName} — hasn't signed up yet</span>`;
-      }
+      row.innerHTML = `<span>${escapeHtml(m.fullName)}</span><span>${escapeHtml(m.regNumber || "no reg #")}</span>`;
       block.appendChild(row);
     });
+    if (g.members.length < 6) {
+      const row = document.createElement("div");
+      row.className = "member-row";
+      row.innerHTML = `<span class="missing">${6 - g.members.length} spot${6 - g.members.length === 1 ? "" : "s"} left</span>`;
+      block.appendChild(row);
+    }
     listEl.appendChild(block);
   });
+
+  const unplacedCard = document.getElementById("unplaced-card");
+  const unplacedList = document.getElementById("unplaced-list");
+  if (unplaced.length) {
+    unplacedCard.style.display = "block";
+    unplacedList.innerHTML = unplaced
+      .map((m) => `<div class="member-row"><span>${escapeHtml(m.fullName)}</span><span>${escapeHtml(m.regNumber || "no reg #")}</span></div>`)
+      .join("");
+  } else {
+    unplacedCard.style.display = "none";
+  }
 }
 
 function renderRing(groups, ring) {
   const el = document.getElementById("ring-list");
   el.innerHTML = "";
-  const byId = new Map(groups.map((g) => [g.id, g]));
+  const byCode = new Map(groups.map((g) => [g.code, g]));
   ring.forEach((entry, idx) => {
-    const g = byId.get(entry.id);
+    const g = byCode.get(entry.code);
     const li = document.createElement("li");
     li.innerHTML = `<span>${idx + 1}. ${groupLabel(g.members)}</span>${
       entry.bridge ? '<span class="bridge">no known link — forced bridge</span>' : ""
@@ -319,13 +366,14 @@ async function loadAndRender() {
   summaryEl.innerHTML = `<div class="notice">Loading…</div>`;
   try {
     const responses = await fetchResponses();
-    const groups = buildGroups(responses);
-    const weight = buildKnownWeights(groups);
-    const ring = buildRing(groups, weight);
-    lastGroups = groups;
+    const { groups, unplaced } = groupByCode(responses);
+    const completeGroups = groups.filter((g) => g.members.length === 6);
+    const weight = buildKnownWeights(completeGroups);
+    const ring = buildRing(completeGroups, weight);
+    lastGroups = completeGroups;
     lastRing = ring;
-    renderGroups(groups);
-    renderRing(groups, ring);
+    renderGroups(groups, unplaced);
+    renderRing(completeGroups, ring);
   } catch (err) {
     summaryEl.innerHTML = `<div class="notice danger">Couldn't load data (${err.message}).</div>`;
   }
@@ -335,7 +383,7 @@ document.getElementById("refresh-btn").addEventListener("click", loadAndRender);
 
 // ---------- CSV export for the day-of tracker sheet ----------
 function exportCSV() {
-  const byId = new Map(lastGroups.map((g) => [g.id, g]));
+  const byCode = new Map(lastGroups.map((g) => [g.code, g]));
   const header = [
     "Group #",
     "Member 1", "Reg 1",
@@ -348,9 +396,8 @@ function exportCSV() {
   ];
   const rows = [header];
   lastRing.forEach((entry, idx) => {
-    const g = byId.get(entry.id);
+    const g = byCode.get(entry.code);
     const members = g.members.slice(0, 6);
-    while (members.length < 6) members.push({ fullName: "", regNumber: "" });
     const row = [idx + 1];
     members.forEach((m) => {
       row.push(m.fullName || "");

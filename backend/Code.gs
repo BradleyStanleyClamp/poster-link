@@ -37,7 +37,7 @@ function doPost(e) {
     body.fullName || '',
     body.email || '',
     body.regNumber || '',
-    (body.groupmates || []).join(' | '),
+    body.groupCode || '',
     (body.known || []).join(' | '),
   ]);
   return ContentService
@@ -50,7 +50,7 @@ function getSheet_() {
   let sheet = ss.getSheetByName(SHEET_NAME);
   if (!sheet) {
     sheet = ss.insertSheet(SHEET_NAME);
-    sheet.appendRow(['Timestamp', 'FullName', 'Email', 'RegNumber', 'Groupmates', 'Known']);
+    sheet.appendRow(['Timestamp', 'FullName', 'Email', 'RegNumber', 'GroupCode', 'Known']);
   }
   return sheet;
 }

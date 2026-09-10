@@ -144,6 +144,37 @@ button.secondary {
   cursor: pointer;
 }
 
+.action-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  text-align: left;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  border-radius: 10px;
+  cursor: pointer;
+}
+.action-btn:hover { border-color: var(--accent); }
+.action-btn strong { font-size: 1rem; }
+.action-btn span { color: var(--muted); font-size: 0.82rem; }
+
+select {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 1rem;
+  background: white;
+  color: var(--text);
+}
+
 button.add-row {
   background: none;
   border: 1px dashed var(--border);

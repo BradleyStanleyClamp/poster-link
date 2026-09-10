@@ -29,11 +29,41 @@
 
   <main>
     <section id="view-signup" class="view active">
-      <div class="card">
+      <div class="card" id="action-picker">
+        <p style="margin-top:0;color:var(--muted);font-size:0.9rem;">How do you want to sign up?</p>
+        <div class="action-grid">
+          <button type="button" class="action-btn" data-action="solo">
+            <strong>Just sign up</strong>
+            <span>Place me into a group later</span>
+          </button>
+          <button type="button" class="action-btn" data-action="start">
+            <strong>Start a group</strong>
+            <span>I'm organising 5 friends</span>
+          </button>
+          <button type="button" class="action-btn" data-action="join">
+            <strong>Join a group</strong>
+            <span>A friend already started one</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="card" id="signup-form-card" style="display:none;">
+        <button type="button" class="secondary" id="back-to-picker" style="margin-bottom:12px;">&larr; Change</button>
         <div id="signup-status"></div>
         <form id="signup-form">
+          <div id="group-name-field" style="display:none;">
+            <label>Name your group</label>
+            <label class="sub">Something distinctive your friends will recognise, e.g. "Alice's Crew".</label>
+            <input type="text" id="groupName">
+          </div>
+
+          <div id="group-join-field" style="display:none;">
+            <label>Choose your group</label>
+            <select id="groupSelect"></select>
+            <button type="button" class="secondary" id="refresh-groups" style="margin-top:6px;">Refresh list</button>
+          </div>
+
           <label>Your full name</label>
-          <label class="sub">Type it exactly how your friends will type it when they list you.</label>
           <input type="text" id="fullName" required>
 
           <label>Email (optional, for reminders)</label>
@@ -41,11 +71,6 @@
 
           <label>Glastonbury registration number</label>
           <input type="text" id="regNumber" required>
-
-          <label>Your 5 group members</label>
-          <label class="sub">Their full names, exactly as they'll type them themselves.</label>
-          <div id="groupmates-rows"></div>
-          <button type="button" class="add-row" id="add-groupmate">+ add name</button>
 
           <label style="margin-top:18px;">Who else do you know well? (optional)</label>
           <label class="sub">People signing up in OTHER groups — this decides who your group sits next to in the chain.</label>
@@ -66,6 +91,11 @@
         <div id="groups-summary"></div>
       </div>
       <div id="groups-list"></div>
+      <div class="card" id="unplaced-card" style="display:none;">
+        <h3 style="margin-top:0;">Not yet in a group</h3>
+        <p style="color:var(--muted);font-size:0.85rem;">Signed up solo — needs to join or start a group.</p>
+        <div id="unplaced-list"></div>
+      </div>
       <div class="card">
         <h3 style="margin-top:0;">Ring order</h3>
         <p style="color:var(--muted);font-size:0.85rem;">Spare tickets pass rightward (wrapping back to the top) to the next group that still needs one.</p>
