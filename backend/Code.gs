@@ -2,7 +2,7 @@
 // specifically for this. See ../README.md for the full deploy steps.
 
 const SHEET_NAME = 'Responses';
-const SECRET = 'REPLACE_WITH_A_CODEWORD'; // must match SHARED_SECRET in app.js
+const SECRET = 'glasto'; // must match SHARED_SECRET in app.js
 
 function doGet(e) {
   if (e.parameter.secret !== SECRET) {
@@ -35,7 +35,6 @@ function doPost(e) {
   sheet.appendRow([
     new Date(),
     body.fullName || '',
-    body.email || '',
     body.regNumber || '',
     body.groupCode || '',
     (body.known || []).join(' | '),
@@ -50,7 +49,7 @@ function getSheet_() {
   let sheet = ss.getSheetByName(SHEET_NAME);
   if (!sheet) {
     sheet = ss.insertSheet(SHEET_NAME);
-    sheet.appendRow(['Timestamp', 'FullName', 'Email', 'RegNumber', 'GroupCode', 'Known']);
+    sheet.appendRow(['Timestamp', 'FullName', 'RegNumber', 'GroupCode', 'Known']);
   }
   return sheet;
 }

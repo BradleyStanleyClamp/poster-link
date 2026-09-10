@@ -5,6 +5,146 @@ const SHARED_SECRET = "glasto"; // must match SECRET in backend/Code.gs
 
 const MAX_KNOWN = 8;
 
+// ---------- maths proof chart (public info section, no gate needed) ----------
+(function initProofChart() {
+  const svg = document.getElementById("proof-chart");
+  if (!svg) return;
+
+  const SVG_NS = "http://www.w3.org/2000/svg";
+  const TICKETS = 130000;
+  const GROUP_SIZE = 6;
+  const APPLICANTS = 2500000;
+  const P = (TICKETS / GROUP_SIZE) / APPLICANTS; // ~0.87% chance any one queuer is a successful transaction
+  const N_MAX = 300;
+  const WIDTH = 320;
+  const HEIGHT = 176;
+  const margin = { left: 34, right: 12, top: 14, bottom: 26 };
+  const plotW = WIDTH - margin.left - margin.right;
+  const plotH = HEIGHT - margin.top - margin.bottom;
+
+  const prob = (n) => 1 - Math.pow(1 - P, n);
+  const xScale = (n) => margin.left + (n / N_MAX) * plotW;
+  const yScale = (p) => margin.top + (1 - p) * plotH;
+
+  function el(tag, attrs) {
+    const node = document.createElementNS(SVG_NS, tag);
+    Object.entries(attrs).forEach(([k, v]) => node.setAttribute(k, v));
+    return node;
+  }
+
+  // gridlines + y labels
+  [0, 0.25, 0.5, 0.75, 1].forEach((tick) => {
+    const y = yScale(tick);
+    svg.appendChild(el("line", { class: "chart-grid", x1: margin.left, x2: WIDTH - margin.right, y1: y, y2: y }));
+    const label = el("text", { class: "chart-axis-label", x: margin.left - 6, y: y + 3, "text-anchor": "end" });
+    label.textContent = `${Math.round(tick * 100)}%`;
+    svg.appendChild(label);
+  });
+
+  // x labels
+  [0, 75, 150, 225, 300].forEach((n) => {
+    const label = el("text", { class: "chart-axis-label", x: xScale(n), y: HEIGHT - margin.bottom + 14, "text-anchor": "middle" });
+    label.textContent = String(n);
+    svg.appendChild(label);
+  });
+
+  // area + line
+  const points = [];
+  for (let n = 0; n <= N_MAX; n++) points.push([xScale(n), yScale(prob(n))]);
+  const lineD = points.map((pt, i) => `${i === 0 ? "M" : "L"}${pt[0]},${pt[1]}`).join(" ");
+  const areaD = `${lineD} L${xScale(N_MAX)},${yScale(0)} L${xScale(0)},${yScale(0)} Z`;
+  svg.appendChild(el("path", { class: "chart-area", d: areaD }));
+  svg.appendChild(el("path", { class: "chart-line", d: lineD }));
+
+  // reference dots (match the table rows) + endpoint label
+  [1, 6, 60, 300].forEach((n) => {
+    svg.appendChild(el("circle", { class: "chart-dot", cx: xScale(n), cy: yScale(prob(n)), r: 4 }));
+  });
+  const endLabel = el("text", {
+    class: "chart-endpoint-label",
+    x: xScale(N_MAX) - 8,
+    y: yScale(prob(N_MAX)) - 8,
+    "text-anchor": "end",
+  });
+  endLabel.textContent = `~${Math.round(prob(N_MAX) * 100)}%`;
+  svg.appendChild(endLabel);
+
+  // crosshair (hidden until hover/focus)
+  const crosshair = el("line", { class: "chart-crosshair", x1: 0, x2: 0, y1: margin.top, y2: HEIGHT - margin.bottom });
+  const crosshairDot = el("circle", { class: "chart-crosshair-dot", r: 5, cx: 0, cy: 0 });
+  crosshair.style.display = "none";
+  crosshairDot.style.display = "none";
+  svg.appendChild(crosshair);
+  svg.appendChild(crosshairDot);
+
+  // hit area — pointer + keyboard
+  const hit = el("rect", {
+    class: "chart-hit",
+    x: margin.left,
+    y: margin.top,
+    width: plotW,
+    height: plotH,
+    tabindex: "0",
+  });
+  svg.appendChild(hit);
+
+  const wrap = svg.closest(".chart-wrap");
+  const tooltip = document.getElementById("chart-tooltip");
+  let currentN = 60;
+
+  function showAt(n) {
+    n = Math.max(0, Math.min(N_MAX, Math.round(n)));
+    currentN = n;
+    const p = prob(n);
+    const px = xScale(n);
+    const py = yScale(p);
+
+    crosshair.setAttribute("x1", px);
+    crosshair.setAttribute("x2", px);
+    crosshair.style.display = "block";
+    crosshairDot.setAttribute("cx", px);
+    crosshairDot.setAttribute("cy", py);
+    crosshairDot.style.display = "block";
+
+    const svgRect = svg.getBoundingClientRect();
+    const wrapRect = wrap.getBoundingClientRect();
+    const left = (px / WIDTH) * svgRect.width + (svgRect.left - wrapRect.left);
+    const top = (py / HEIGHT) * svgRect.height + (svgRect.top - wrapRect.top);
+    tooltip.style.left = `${left}px`;
+    tooltip.style.top = `${top}px`;
+
+    tooltip.replaceChildren();
+    const strong = document.createElement("strong");
+    strong.textContent = `${Math.round(p * 100)}%`;
+    const span = document.createElement("span");
+    span.textContent = ` chance at ${n} ${n === 1 ? "person" : "people"}`;
+    tooltip.append(strong, span);
+    tooltip.hidden = false;
+  }
+
+  function hide() {
+    crosshair.style.display = "none";
+    crosshairDot.style.display = "none";
+    tooltip.hidden = true;
+  }
+
+  function nFromClientX(clientX) {
+    const svgRect = svg.getBoundingClientRect();
+    const localX = ((clientX - svgRect.left) / svgRect.width) * WIDTH;
+    return ((localX - margin.left) / plotW) * N_MAX;
+  }
+
+  hit.addEventListener("pointermove", (e) => showAt(nFromClientX(e.clientX)));
+  hit.addEventListener("pointerleave", hide);
+  hit.addEventListener("pointerdown", (e) => showAt(nFromClientX(e.clientX)));
+  hit.addEventListener("focus", () => showAt(currentN));
+  hit.addEventListener("blur", hide);
+  hit.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowRight") { e.preventDefault(); showAt(currentN + (e.shiftKey ? 25 : 5)); }
+    if (e.key === "ArrowLeft") { e.preventDefault(); showAt(currentN - (e.shiftKey ? 25 : 5)); }
+  });
+})();
+
 // ---------- gate ----------
 const gateEl = document.getElementById("gate");
 const appEl = document.getElementById("app");
@@ -158,11 +298,14 @@ document.getElementById("signup-form").addEventListener("submit", async (e) => {
   const payload = {
     secret: SHARED_SECRET,
     fullName: document.getElementById("fullName").value.trim(),
-    email: document.getElementById("email").value.trim(),
     regNumber: document.getElementById("regNumber").value.trim(),
     groupCode,
     known: collectRowValues("known-rows"),
   };
+
+  const submitBtn = document.getElementById("signup-submit-btn");
+  submitBtn.disabled = true;
+  submitBtn.innerHTML = `<span class="btn-spinner"></span>Submitting…`;
 
   try {
     const res = await fetch(SCRIPT_URL, {
@@ -179,6 +322,9 @@ document.getElementById("signup-form").addEventListener("submit", async (e) => {
     document.getElementById("back-to-picker").click();
   } catch (err) {
     statusEl.innerHTML = `<div class="notice danger">Couldn't submit (${err.message}). Ask the organiser to check the backend is deployed.</div>`;
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = `<span class="btn-label">Submit</span>`;
   }
 });
 
@@ -227,7 +373,6 @@ function groupByCode(responses) {
     const member = {
       fullName: r.FullName || r.fullName,
       regNumber: r.RegNumber || r.regNumber,
-      email: r.Email || r.email,
       known: String(r.Known || "").split("|").map((s) => s.trim()).filter(Boolean),
     };
     if (!rawCode) {

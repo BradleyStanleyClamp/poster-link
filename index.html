@@ -3,15 +3,72 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Glasto Ticket Ring</title>
+<title>GlastoMaxing</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
 <header>
-  <h1>🎪 Glasto Ticket Ring</h1>
-  <p>Sign up, get grouped, and see the chain order.</p>
+  <div class="sunburst" aria-hidden="true"></div>
+  <h1>GlastoMaxing</h1>
+  <p>Optimising friendship for maximum ticket yield.</p>
 </header>
+
+<section class="info">
+  <div class="info-card">
+    <span class="info-icon">📈</span>
+    <h2>The idea</h2>
+    <p>The more of us involved, the better our odds: any successful purchase covers <strong>6</strong> reg numbers, not just the buyer's own group.</p>
+    <details class="proof">
+      <summary>Show the maths</summary>
+      <div class="proof-body">
+        <p>If each person has an independent chance <code>p</code> of getting through the queue in time, and <code>n</code> people from your network are all queuing, the odds that <em>at least one</em> of them makes it are:</p>
+        <p class="formula">P(at least 1) = 1 &minus; (1 &minus; p)<sup>n</sup></p>
+        <p>That climbs fast as <code>n</code> grows — and since any single success can cover 6 people's worth of tickets, every extra person queuing (even from someone else's group) helps <em>everyone</em>, not just themselves. With ~130,000 tickets on sale and ~2.5 million people registered, that's roughly 21,700 successful purchases up for grabs (130,000 ÷ 6) — so any one random person's odds of being one of them are just p ≈ 0.9%. Not much alone, but:</p>
+        <div class="chart-wrap">
+          <svg id="proof-chart" viewBox="0 0 320 176" width="320" height="176" role="img" aria-labelledby="proof-chart-title proof-chart-desc">
+            <title id="proof-chart-title">Odds at least one person gets through, by group size</title>
+            <desc id="proof-chart-desc">Rises from under 1% at 1 person to about 93% at 300 people, still climbing at 1000.</desc>
+          </svg>
+          <div class="chart-tooltip" id="chart-tooltip" hidden></div>
+        </div>
+        <p class="chart-caption">people queuing, left to right: 0 → 300</p>
+        <table class="proof-table">
+          <tr><th>People queuing</th><td>1</td><td>6 (one group)</td><td>60 (ten groups)</td><td>300 (fifty groups)</td></tr>
+          <tr><th>Odds someone gets through</th><td>~1%</td><td>~5%</td><td>~41%</td><td>~93%</td></tr>
+        </table>
+        <p>Illustrative numbers (and technically a hypergeometric draw, but binomial's close enough at this scale) — not a promise, but the shape of the curve is the whole point: go big.</p>
+      </div>
+    </details>
+  </div>
+
+  <div class="info-card">
+    <span class="info-icon">🤝</span>
+    <h2>Pick your crew</h2>
+    <p>Start a group of 6, or join one a friend's already started. Because loads of different friend circles are piling in, we alline groups up next to the people they already know best (in a looped chain), so if you do well, you will be helping your closest freinds the most.</p>
+  </div>
+
+  <div class="info-card">
+    <span class="info-icon">🔥</span>
+    <h2>On the day</h2>
+    <p>Simple rules. Get a ticket and your group's still empty? It's yours. Your group's already sorted? Pass it to the next group in the line that is ticketless. Repeat all the way round until we all win.</p>
+  </div>
+
+  <div class="info-card">
+    <span class="info-icon">📋</span>
+    <h2>Staying in sync</h2>
+    <p>We will keep track with a shared Google sheet, and use this <a href="https://chat.whatsapp.com/ISLZQ3vOvYgEysMAbwNmZn?s=cl&amp;p=i&amp;mlu=4">WhatsApp group for communication</a>, so make sure to join!</a>.</p>
+  </div>
+
+  <div class="info-card">
+    <span class="info-icon">🔒</span>
+    <h2>The small print</h2>
+    <p>Your name and reg number go in a Google Sheet that anyone with the codeword can read. There ain't no GDPR here, it's a spreadsheet held together by Claude and vibes. Sign up anyway.</p>
+  </div>
+</section>
 
 <div id="gate" class="card" style="max-width:640px;margin:16px auto;">
   <label>Group codeword</label>
@@ -62,9 +119,6 @@
           <label>Your full name</label>
           <input type="text" id="fullName" required>
 
-          <label>Email (optional, for reminders)</label>
-          <input type="email" id="email">
-
           <label>Glastonbury registration number</label>
           <input type="text" id="regNumber" required>
 
@@ -73,7 +127,7 @@
           <div id="known-rows"></div>
           <button type="button" class="add-row" id="add-known">+ add name</button>
 
-          <button type="submit" class="primary">Submit</button>
+          <button type="submit" class="primary" id="signup-submit-btn"><span class="btn-label">Submit</span></button>
         </form>
       </div>
     </section>
@@ -86,7 +140,8 @@
         </div>
         <div id="groups-summary"></div>
       </div>
-      <div id="groups-list"></div>
+      <p class="carousel-hint">&larr; swipe to browse groups &rarr;</p>
+      <div id="groups-list" class="groups-carousel"></div>
       <div class="card" id="unplaced-card" style="display:none;">
         <h3 style="margin-top:0;">Not yet in a group</h3>
         <p style="color:var(--muted);font-size:0.85rem;">Signed up solo — needs to join or start a group.</p>
@@ -101,7 +156,7 @@
   </main>
 </div>
 
-<footer>Data lives in a Google Sheet behind a small Apps Script backend — see the repo README for setup.</footer>
+<!-- <footer>Data lives in a Google Sheet behind a small Apps Script backend — see the repo README for setup.</footer> -->
 
 <script src="app.js"></script>
 </body>

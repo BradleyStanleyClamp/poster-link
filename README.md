@@ -29,12 +29,14 @@ check the row lands in your Sheet.
 ## Updating an already-deployed backend
 
 If you'd already deployed `Code.gs` before this version (the group-matching scheme
-changed from free-text "list your groupmates" to explicit start/join a group):
+changed from free-text "list your groupmates" to explicit start/join a group, and
+email collection was later dropped entirely):
 
 1. Paste the updated [`backend/Code.gs`](backend/Code.gs) over your script.
 2. In your Sheet's `Responses` tab, rename column E's header from `Groupmates` to
-   `GroupCode`, and delete any test rows you'd submitted under the old scheme (their
-   data won't line up with the new columns).
+   `GroupCode`, delete the `Email` column entirely (columns will shift left — that's
+   fine, `doGet` maps by header name, not position), and delete any test rows from
+   before (their data won't line up with the new columns).
 3. Deploy → Manage deployments → edit (pencil icon) → Version: **New version** → Deploy.
    Editing the script alone does *not* update the live `/exec` URL — you need this step,
    but the URL itself stays the same, so `app.js` doesn't need to change.
