@@ -82,6 +82,7 @@
   <nav class="tabs">
     <button id="tab-signup" class="active">Sign up</button>
     <button id="tab-groups">Groups &amp; ring</button>
+    <button id="tab-network">Network</button>
   </nav>
 
   <main>
@@ -163,6 +164,38 @@
         <h3 style="margin-top:0;">Ring order</h3>
         <p style="color:var(--muted);font-size:0.85rem;">Spare tickets pass rightward (wrapping back to the top) to the next group that still needs one.</p>
         <ul class="ring-list" id="ring-list"></ul>
+      </div>
+    </section>
+
+    <section id="view-network" class="view">
+      <div class="card">
+        <div class="actions-row">
+          <button class="secondary" id="network-refresh-btn">Refresh data</button>
+        </div>
+        <div class="stats" id="network-stats"></div>
+      </div>
+
+      <div class="card graph-card">
+        <div class="graph-stage" id="network-stage">
+          <svg id="network-svg" viewBox="0 0 1000 620" width="1000" height="620" role="img" aria-label="Network diagram of ticket groups, connected where a member of one group named a member of another as someone they know">
+            <rect id="network-bg-rect" x="0" y="0" width="1000" height="620" fill="transparent"></rect>
+            <g id="network-edges-layer"></g>
+            <g id="network-nodes-layer"></g>
+          </svg>
+          <div id="network-labels-layer"></div>
+        </div>
+        <p class="hint">Drag a circle to rearrange · click one for details · click empty space to clear</p>
+      </div>
+
+      <aside class="panel" id="network-detail-panel">
+        <p class="panel-empty">Click a group above to see its members and which other groups it's linked to.</p>
+      </aside>
+
+      <div class="legend">
+        <span class="legend-item"><i class="dot teal"></i>Complete group (6/6)</span>
+        <span class="legend-item"><i class="dot mustard"></i>Still forming</span>
+        <span class="legend-item"><i class="dot outline"></i>No friend link to another group</span>
+        <span class="legend-item"><i class="line"></i>Friend link (thicker = more people know each other)</span>
       </div>
     </section>
   </main>

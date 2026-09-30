@@ -172,23 +172,27 @@ document.getElementById("gate-submit").addEventListener("click", () => {
 checkGate();
 
 // ---------- tabs ----------
-const tabSignup = document.getElementById("tab-signup");
-const tabGroups = document.getElementById("tab-groups");
-const viewSignup = document.getElementById("view-signup");
-const viewGroups = document.getElementById("view-groups");
+const TABS = {
+  signup: { tab: document.getElementById("tab-signup"), view: document.getElementById("view-signup") },
+  groups: { tab: document.getElementById("tab-groups"), view: document.getElementById("view-groups") },
+  network: { tab: document.getElementById("tab-network"), view: document.getElementById("view-network") },
+};
 
-tabSignup.addEventListener("click", () => switchTab("signup"));
-tabGroups.addEventListener("click", () => {
+TABS.signup.tab.addEventListener("click", () => switchTab("signup"));
+TABS.groups.tab.addEventListener("click", () => {
   switchTab("groups");
   loadAndRender();
 });
+TABS.network.tab.addEventListener("click", () => {
+  switchTab("network");
+  loadAndRenderNetwork();
+});
 
 function switchTab(name) {
-  const isSignup = name === "signup";
-  tabSignup.classList.toggle("active", isSignup);
-  tabGroups.classList.toggle("active", !isSignup);
-  viewSignup.classList.toggle("active", isSignup);
-  viewGroups.classList.toggle("active", !isSignup);
+  Object.entries(TABS).forEach(([key, { tab, view }]) => {
+    tab.classList.toggle("active", key === name);
+    view.classList.toggle("active", key === name);
+  });
 }
 
 // ---------- escaping ----------
@@ -582,3 +586,286 @@ function exportCSV() {
 }
 
 document.getElementById("export-btn").addEventListener("click", exportCSV);
+
+// ---------- network graph: groups as nodes, "known" links as edges ----------
+const NET_W = 1000;
+const NET_H = 620;
+const NET_PAD = 46;
+let networkNodesById = new Map();
+let networkEdgesList = [];
+let networkSelectedId = null;
+
+function svgEl(tag, attrs) {
+  const node = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  Object.entries(attrs).forEach(([k, v]) => node.setAttribute(k, v));
+  return node;
+}
+
+function buildNetworkGraph(groups, weight) {
+  const nodes = groups.map((g) => {
+    const neighbours = weight[g.code] || {};
+    return {
+      id: g.code,
+      name: g.displayName,
+      size: g.members.length,
+      complete: g.members.length === 6,
+      isolated: Object.keys(neighbours).length === 0,
+      members: g.members.map((m) => m.fullName),
+      radius: 14 + g.members.length * 3,
+    };
+  });
+
+  const edges = [];
+  const seen = new Set();
+  nodes.forEach((n) => {
+    Object.entries(weight[n.id] || {}).forEach(([otherId, w]) => {
+      const pairKey = [n.id, otherId].sort().join("::");
+      if (seen.has(pairKey)) return;
+      seen.add(pairKey);
+      edges.push({ source: n.id, target: otherId, weight: w });
+    });
+  });
+
+  return { nodes, edges };
+}
+
+function runNetworkSimulation(nodes, edges) {
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const R0 = Math.min(NET_W, NET_H) * 0.34;
+  nodes.forEach((n, i) => {
+    const angle = (i / nodes.length) * Math.PI * 2;
+    n.x = NET_W / 2 + R0 * Math.cos(angle);
+    n.y = NET_H / 2 + R0 * Math.sin(angle);
+    n.vx = 0;
+    n.vy = 0;
+  });
+
+  const REPULSION = 32000;
+  const SPRING_K = 0.02;
+  const IDEAL_LEN = 190;
+  const CENTER_K = 0.0025;
+  const DAMPING = 0.82;
+
+  for (let iter = 0; iter < 500; iter++) {
+    nodes.forEach((n) => { n.fx = 0; n.fy = 0; });
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const a = nodes[i], b = nodes[j];
+        const dx = b.x - a.x, dy = b.y - a.y;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 0.01;
+        const force = REPULSION / (dist * dist);
+        const fx = (dx / dist) * force, fy = (dy / dist) * force;
+        a.fx -= fx; a.fy -= fy;
+        b.fx += fx; b.fy += fy;
+      }
+    }
+    edges.forEach((e) => {
+      const a = byId.get(e.source), b = byId.get(e.target);
+      const idealLen = IDEAL_LEN / (1 + Math.min(e.weight, 8) * 0.15);
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 0.01;
+      const force = (dist - idealLen) * SPRING_K;
+      const fx = (dx / dist) * force, fy = (dy / dist) * force;
+      a.fx += fx; a.fy += fy;
+      b.fx -= fx; b.fy -= fy;
+    });
+    nodes.forEach((n) => {
+      n.fx += (NET_W / 2 - n.x) * CENTER_K;
+      n.fy += (NET_H / 2 - n.y) * CENTER_K;
+      n.vx = (n.vx + n.fx) * DAMPING;
+      n.vy = (n.vy + n.fy) * DAMPING;
+      n.x = Math.min(NET_W - NET_PAD - n.radius, Math.max(NET_PAD + n.radius, n.x + n.vx));
+      n.y = Math.min(NET_H - NET_PAD - n.radius, Math.max(NET_PAD + n.radius, n.y + n.vy));
+    });
+  }
+}
+
+function renderNetworkStats(groups) {
+  const complete = groups.filter((g) => g.members.length === 6).length;
+  const forming = groups.length - complete;
+  const people = groups.reduce((sum, g) => sum + g.members.length, 0);
+  const isolated = networkEdgesList.length
+    ? groups.filter((g) => !networkEdgesList.some((e) => e.source === g.code || e.target === g.code)).length
+    : groups.length;
+  document.getElementById("network-stats").innerHTML = `
+    <div class="stat"><span class="stat-value">${groups.length}</span><span class="stat-label">groups</span></div>
+    <div class="stat"><span class="stat-value">${people}</span><span class="stat-label">people</span></div>
+    <div class="stat teal"><span class="stat-value">${complete}</span><span class="stat-label">complete, 6/6</span></div>
+    <div class="stat mustard"><span class="stat-value">${forming}</span><span class="stat-label">still forming</span></div>
+    <div class="stat"><span class="stat-value">${isolated}</span><span class="stat-label">no friend link</span></div>
+  `;
+}
+
+function renderNetworkGraph(nodes, edges) {
+  const edgesLayer = document.getElementById("network-edges-layer");
+  const nodesLayer = document.getElementById("network-nodes-layer");
+  const labelsLayer = document.getElementById("network-labels-layer");
+  const svg = document.getElementById("network-svg");
+  edgesLayer.innerHTML = "";
+  nodesLayer.innerHTML = "";
+  labelsLayer.innerHTML = "";
+
+  networkNodesById = new Map(nodes.map((n) => [n.id, n]));
+  networkEdgesList = edges;
+  networkSelectedId = null;
+
+  edges.forEach((e) => {
+    const a = networkNodesById.get(e.source), b = networkNodesById.get(e.target);
+    const line = svgEl("line", {
+      class: "edge",
+      x1: a.x, y1: a.y, x2: b.x, y2: b.y,
+      "stroke-width": Math.min(1.5 + e.weight * 0.9, 7),
+    });
+    edgesLayer.appendChild(line);
+    e._el = line;
+  });
+
+  nodes.forEach((n) => {
+    const statusClass = n.isolated ? "isolated" : n.complete ? "complete" : "forming";
+    const circle = svgEl("circle", {
+      class: `node-circle ${statusClass}`,
+      cx: n.x, cy: n.y, r: n.radius,
+      tabindex: "0",
+    });
+    nodesLayer.appendChild(circle);
+    n._circle = circle;
+
+    const label = document.createElement("div");
+    label.className = "node-label";
+    label.textContent = n.name;
+    labelsLayer.appendChild(label);
+    n._label = label;
+
+    positionNetworkLabel(n);
+    attachNetworkDrag(svg, circle, n);
+  });
+}
+
+function positionNetworkLabel(n) {
+  n._label.style.left = `${(n.x / NET_W) * 100}%`;
+  n._label.style.top = `${((n.y + n.radius + 6) / NET_H) * 100}%`;
+}
+
+function updateNetworkNodePosition(n) {
+  n._circle.setAttribute("cx", n.x);
+  n._circle.setAttribute("cy", n.y);
+  positionNetworkLabel(n);
+  networkEdgesList.forEach((e) => {
+    if (e.source === n.id || e.target === n.id) {
+      const a = networkNodesById.get(e.source), b = networkNodesById.get(e.target);
+      e._el.setAttribute("x1", a.x); e._el.setAttribute("y1", a.y);
+      e._el.setAttribute("x2", b.x); e._el.setAttribute("y2", b.y);
+    }
+  });
+}
+
+function attachNetworkDrag(svg, circle, n) {
+  circle.addEventListener("pointerdown", (ev) => {
+    ev.preventDefault();
+    const startClientX = ev.clientX, startClientY = ev.clientY;
+    const startX = n.x, startY = n.y;
+    let moved = false;
+
+    function onMove(e2) {
+      const rect = svg.getBoundingClientRect();
+      const scaleX = NET_W / rect.width, scaleY = NET_H / rect.height;
+      const dx = (e2.clientX - startClientX) * scaleX;
+      const dy = (e2.clientY - startClientY) * scaleY;
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) moved = true;
+      n.x = Math.min(NET_W - NET_PAD - n.radius, Math.max(NET_PAD + n.radius, startX + dx));
+      n.y = Math.min(NET_H - NET_PAD - n.radius, Math.max(NET_PAD + n.radius, startY + dy));
+      updateNetworkNodePosition(n);
+    }
+    function onUp() {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      if (!moved) selectNetworkNode(n.id);
+    }
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  });
+  circle.addEventListener("keydown", (ev) => {
+    if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); selectNetworkNode(n.id); }
+  });
+}
+
+function selectNetworkNode(id) {
+  networkSelectedId = id;
+  const neighbourIds = new Set();
+  if (id) {
+    networkEdgesList.forEach((e) => {
+      if (e.source === id) neighbourIds.add(e.target);
+      if (e.target === id) neighbourIds.add(e.source);
+    });
+  }
+
+  networkNodesById.forEach((n) => {
+    const related = !id || n.id === id || neighbourIds.has(n.id);
+    n._circle.classList.toggle("dim", !related);
+    n._circle.classList.toggle("selected", n.id === id);
+    n._label.classList.toggle("dim", !related);
+  });
+  networkEdgesList.forEach((e) => {
+    const touches = id && (e.source === id || e.target === id);
+    e._el.classList.toggle("lit", !!touches);
+    e._el.classList.toggle("dim", !!id && !touches);
+  });
+
+  const panel = document.getElementById("network-detail-panel");
+  if (!id) {
+    panel.innerHTML = `<p class="panel-empty">Click a group above to see its members and which other groups it's linked to.</p>`;
+    return;
+  }
+  const n = networkNodesById.get(id);
+  const statusClass = n.isolated ? "isolated" : n.complete ? "complete" : "forming";
+  const statusText = n.isolated ? "No friend link to another group" : n.complete ? "Complete, 6/6" : `Forming, ${n.size}/6`;
+  const links = networkEdgesList
+    .filter((e) => e.source === id || e.target === id)
+    .map((e) => {
+      const otherId = e.source === id ? e.target : e.source;
+      return { name: networkNodesById.get(otherId).name, weight: e.weight };
+    })
+    .sort((a, b) => b.weight - a.weight);
+
+  panel.innerHTML = `
+    <span class="pill ${statusClass}">${escapeHtml(statusText)}</span>
+    <h2>${escapeHtml(n.name)}</h2>
+    <div class="panel-grid">
+      <div class="panel-col">
+        <h3>Members (${n.members.length})</h3>
+        <ul>${n.members.map((m) => `<li>${escapeHtml(m)}</li>`).join("")}</ul>
+      </div>
+      <div class="panel-col">
+        <h3>Linked groups</h3>
+        <ul>${links.length ? links.map((l) => `<li>${escapeHtml(l.name)} (${l.weight} link${l.weight === 1 ? "" : "s"})</li>`).join("") : '<li class="none">None yet</li>'}</ul>
+      </div>
+    </div>
+  `;
+}
+
+document.getElementById("network-bg-rect").addEventListener("pointerdown", () => selectNetworkNode(null));
+
+async function loadAndRenderNetwork() {
+  const statsEl = document.getElementById("network-stats");
+  statsEl.innerHTML = `<div class="notice">Loading…</div>`;
+  try {
+    const responses = await fetchResponses();
+    const { groups } = groupByCode(responses);
+    if (groups.length === 0) {
+      statsEl.innerHTML = `<div class="notice warn">No groups yet.</div>`;
+      document.getElementById("network-edges-layer").innerHTML = "";
+      document.getElementById("network-nodes-layer").innerHTML = "";
+      document.getElementById("network-labels-layer").innerHTML = "";
+      return;
+    }
+    const weight = buildKnownWeights(groups);
+    const { nodes, edges } = buildNetworkGraph(groups, weight);
+    runNetworkSimulation(nodes, edges);
+    renderNetworkGraph(nodes, edges);
+    renderNetworkStats(groups);
+  } catch (err) {
+    statsEl.innerHTML = `<div class="notice danger">Couldn't load data (${err.message}).</div>`;
+  }
+}
+
+document.getElementById("network-refresh-btn").addEventListener("click", loadAndRenderNetwork);
