@@ -424,35 +424,7 @@ function buildKnownWeights(groups) {
   return weight;
 }
 
-function buildRing(groups, weight) {
-  const codes = groups.map((g) => g.code);
-  if (codes.length === 0) return [];
-  const visited = new Set([codes[0]]);
-  const order = [{ code: codes[0], bridge: false }];
-
-  while (order.length < codes.length) {
-    const current = order[order.length - 1].code;
-    const neighbours = weight[current] || {};
-    let best = null,
-      bestW = -1;
-    Object.entries(neighbours).forEach(([code, w]) => {
-      if (!visited.has(code) && w > bestW) {
-        best = code;
-        bestW = w;
-      }
-    });
-    const bridge = best === null;
-    if (bridge) best = codes.find((code) => !visited.has(code));
-    order.push({ code: best, bridge });
-    visited.add(best);
-  }
-  return order;
-}
-
 // ---------- rendering ----------
-function groupLabel(members) {
-  return members.map((m) => escapeHtml(m.fullName)).join(", ");
-}
 
 function renderGroups(groups, unplaced) {
   const listEl = document.getElementById("groups-list");
@@ -508,18 +480,229 @@ function renderGroups(groups, unplaced) {
   }
 }
 
-function renderRing(groups, ring) {
-  const el = document.getElementById("ring-list");
-  el.innerHTML = "";
+// ---------- ring order: nested rings — a ring of families, each family its own inner ring ----------
+// Spares circulate inside a family first; only once the whole family already has tickets does
+// a spare escape to the next family. Tell me the groups and I'll update this.
+const RING_FAMILIES = [
+  { name: "Family 1", groups: ["amy's friends", "rebeccas pals", "toby’s crew"] },
+  { name: "Family 2", groups: ["brad's", "nina’s group", "pk team"] },
+  { name: "Family 3", groups: ["swanfield", "cali road"] },
+  { name: "Family 4", groups: ["ruby's group", "emily's group", "nick p's group", "woodys group"] },
+  { name: "Family 5", groups: ["noah marshall’s bitches", "harry n's group", "toby smiths crew"] },
+  { name: "Family 6", groups: ["les garçons (mikey and co)", "howies"] },
+];
+
+function buildRingPlan(groups) {
   const byCode = new Map(groups.map((g) => [g.code, g]));
-  ring.forEach((entry, idx) => {
-    const g = byCode.get(entry.code);
-    const li = document.createElement("li");
-    li.innerHTML = `<span>${idx + 1}. ${groupLabel(g.members)}</span>${
-      entry.bridge ? '<span class="bridge">no known link — forced bridge</span>' : ""
-    }`;
-    el.appendChild(li);
+  const familyPlans = RING_FAMILIES.map((family, famIdx) => ({
+    name: family.name,
+    familyIndex: famIdx,
+    entries: family.groups.map((code) => ({
+      code,
+      group: byCode.get(code) || null,
+      familyIndex: famIdx,
+      familyName: family.name,
+      missing: !byCode.get(code),
+    })),
+  }));
+  const placedCodes = new Set(RING_FAMILIES.flatMap((f) => f.groups));
+  const unplacedGroups = groups.filter((g) => !placedCodes.has(g.code));
+  return { familyPlans, unplacedGroups };
+}
+
+const RING_W = 900, RING_H = 900;
+const RING_OUTER_R = 330;
+const RING_INNER_R = 82;
+let ringEdgesList = [];
+let ringEntryByCode = new Map();
+
+function arcPath(a, b, r) {
+  return `M ${a.x},${a.y} A ${r},${r} 0 0,1 ${b.x},${b.y}`;
+}
+
+function renderRingDiagram(familyPlans) {
+  const edgesLayer = document.getElementById("ring-edges-layer");
+  const nodesLayer = document.getElementById("ring-nodes-layer");
+  const labelsLayer = document.getElementById("ring-labels-layer");
+  edgesLayer.innerHTML = "";
+  nodesLayer.innerHTML = "";
+  labelsLayer.innerHTML = "";
+
+  const cx = RING_W / 2, cy = RING_H / 2;
+  const F = familyPlans.length;
+  const clusterCenters = familyPlans.map((fp, i) => {
+    const angle = (i / F) * Math.PI * 2 - Math.PI / 2;
+    return { x: cx + RING_OUTER_R * Math.cos(angle), y: cy + RING_OUTER_R * Math.sin(angle) };
   });
+
+  ringEntryByCode = new Map();
+  familyPlans.forEach((fp, fi) => {
+    const center = clusterCenters[fi];
+    const k = fp.entries.length;
+    fp.entries.forEach((entry, i) => {
+      const angle = k === 1 ? -Math.PI / 2 : (i / k) * Math.PI * 2 - Math.PI / 2;
+      entry.x = center.x + (k === 1 ? 0 : RING_INNER_R) * Math.cos(angle);
+      entry.y = center.y + (k === 1 ? 0 : RING_INNER_R) * Math.sin(angle);
+      entry.radius = entry.group ? Math.min(22, 9 + entry.group.members.length * 2) : 12;
+      ringEntryByCode.set(entry.code, entry);
+    });
+
+    // faint dashed ring around the cluster, purely a visual grouping aid
+    if (k >= 2) {
+      edgesLayer.appendChild(svgEl("circle", {
+        class: "cluster-ring",
+        cx: center.x, cy: center.y, r: RING_INNER_R,
+      }));
+    }
+    const badge = document.createElement("div");
+    badge.className = "family-badge";
+    badge.textContent = fp.name;
+    labelsLayer.appendChild(badge);
+    badge.style.left = `${(center.x / RING_W) * 100}%`;
+    badge.style.top = `${(center.y / RING_H) * 100}%`;
+  });
+
+  ringEdgesList = [];
+
+  // intra-family edges: the tight sub-ring within each family
+  familyPlans.forEach((fp) => {
+    const k = fp.entries.length;
+    if (k < 2) return;
+    fp.entries.forEach((entry, i) => {
+      const next = fp.entries[(i + 1) % k];
+      const path = svgEl("path", {
+        class: "ring-edge ring-edge-intra",
+        d: arcPath(entry, next, RING_INNER_R),
+        "marker-end": "url(#ring-arrow)",
+      });
+      edgesLayer.appendChild(path);
+      ringEdgesList.push({ from: entry.code, to: next.code, kind: "intra", el: path });
+    });
+  });
+
+  // escape edges: only used once an entire family already has tickets
+  familyPlans.forEach((fp, fi) => {
+    if (fp.entries.length === 0) return;
+    const nextFamily = familyPlans[(fi + 1) % F];
+    if (nextFamily.entries.length === 0) return;
+    // connect whichever pair of nodes (one per family) are physically closest,
+    // so the line runs cleanly between the two clusters instead of through either circle
+    let fromNode = null, toNode = null, bestDist = Infinity;
+    fp.entries.forEach((a) => {
+      nextFamily.entries.forEach((b) => {
+        const d = Math.hypot(a.x - b.x, a.y - b.y);
+        if (d < bestDist) { bestDist = d; fromNode = a; toNode = b; }
+      });
+    });
+    const line = svgEl("line", {
+      class: "ring-edge ring-edge-escape",
+      x1: fromNode.x, y1: fromNode.y, x2: toNode.x, y2: toNode.y,
+      "marker-end": "url(#ring-arrow)",
+    });
+    edgesLayer.appendChild(line);
+    ringEdgesList.push({ from: fromNode.code, to: toNode.code, kind: "escape", el: line });
+  });
+
+  ringEntryByCode.forEach((entry) => {
+    const classes = ["node-circle", `fam-${entry.familyIndex + 1}`];
+    if (entry.missing) classes.push("ring-missing");
+    else if (entry.group.members.length < 6) classes.push("ring-forming");
+    const circle = svgEl("circle", { class: classes.join(" "), cx: entry.x, cy: entry.y, r: entry.radius, tabindex: "0" });
+    nodesLayer.appendChild(circle);
+    entry._circle = circle;
+
+    const label = document.createElement("div");
+    label.className = "node-label" + (entry.missing ? " ring-missing-label" : "");
+    label.textContent = entry.group ? entry.group.displayName : entry.code;
+    labelsLayer.appendChild(label);
+    entry._label = label;
+    label.style.left = `${(entry.x / RING_W) * 100}%`;
+    label.style.top = `${((entry.y + entry.radius + 6) / RING_H) * 100}%`;
+
+    circle.addEventListener("pointerdown", () => selectRingNode(entry.code));
+    circle.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); selectRingNode(entry.code); }
+    });
+  });
+}
+
+document.getElementById("ring-bg-rect").addEventListener("pointerdown", () => selectRingNode(null));
+
+function selectRingNode(code) {
+  if (!code) {
+    ringEntryByCode.forEach((e) => {
+      e._circle.classList.remove("dim", "selected");
+      e._label.classList.remove("dim");
+    });
+    ringEdgesList.forEach((e) => {
+      e.el.classList.remove("lit", "dim");
+      e.el.setAttribute("marker-end", "url(#ring-arrow)");
+    });
+    document.getElementById("ring-detail-panel").innerHTML = '<p class="panel-empty">Click a group in the ring above for details.</p>';
+    return;
+  }
+
+  const entry = ringEntryByCode.get(code);
+  const incoming = ringEdgesList.filter((e) => e.to === code);
+  const outgoing = ringEdgesList.filter((e) => e.from === code);
+  const relatedCodes = new Set([code, ...incoming.map((e) => e.from), ...outgoing.map((e) => e.to)]);
+
+  ringEntryByCode.forEach((e) => {
+    const related = relatedCodes.has(e.code);
+    e._circle.classList.toggle("dim", !related);
+    e._circle.classList.toggle("selected", e.code === code);
+    e._label.classList.toggle("dim", !related);
+  });
+  ringEdgesList.forEach((e) => {
+    const lit = e.from === code || e.to === code;
+    e.el.classList.toggle("lit", lit);
+    e.el.classList.toggle("dim", !lit);
+    e.el.setAttribute("marker-end", lit ? "url(#ring-arrow-lit)" : "url(#ring-arrow)");
+  });
+
+  const labelOf = (c) => {
+    const e = ringEntryByCode.get(c);
+    return e ? (e.group ? e.group.displayName : e.code) : "—";
+  };
+  const describe = (e) => labelOf(e.to === code ? e.from : e.to) + (e.kind === "escape" ? " (once that family's fully sorted)" : "");
+
+  const statusClass = entry.missing ? "isolated" : entry.group.members.length === 6 ? "complete" : "forming";
+  const statusText = entry.missing ? "Not signed up yet" : entry.group.members.length === 6 ? "Complete, 6/6" : `Forming, ${entry.group.members.length}/6`;
+
+  document.getElementById("ring-detail-panel").innerHTML = `
+    <span class="pill ${statusClass}">${escapeHtml(statusText)}</span>
+    <h2>${escapeHtml(entry.group ? entry.group.displayName : entry.code)}</h2>
+    <p style="margin:0 0 10px;color:var(--muted);font-size:0.85rem;">${escapeHtml(entry.familyName)}</p>
+    <div class="panel-grid">
+      <div class="panel-col">
+        <h3>Members${entry.group ? ` (${entry.group.members.length})` : ""}</h3>
+        <ul>${entry.group ? entry.group.members.map((m) => `<li>${escapeHtml(m.fullName)}</li>`).join("") : '<li class="none">Nobody has signed up under this name yet</li>'}</ul>
+      </div>
+      <div class="panel-col">
+        <h3>Flow</h3>
+        <ul>
+          ${incoming.map((e) => `<li>&larr; receives from: ${escapeHtml(describe(e))}</li>`).join("")}
+          ${outgoing.map((e) => `<li>passes to &rarr;: ${escapeHtml(describe(e))}</li>`).join("")}
+        </ul>
+      </div>
+    </div>
+  `;
+}
+
+function renderRingLegend() {
+  const items = RING_FAMILIES.map((f, i) => `<span class="legend-item"><i class="dot fam-${i + 1}"></i>${escapeHtml(f.name)}</span>`);
+  items.push('<span class="legend-item"><i class="line"></i>Within family</span>');
+  items.push('<span class="legend-item"><i class="line dashed"></i>Between families (once one’s fully sorted)</span>');
+  items.push('<span class="legend-item"><i class="dot" style="border-style:dashed;"></i>Still forming</span>');
+  items.push('<span class="legend-item"><i class="dot ring-missing-dot"></i>Not signed up yet</span>');
+  document.getElementById("ring-family-legend").innerHTML = items.join("");
+}
+
+function renderRingUnplacedNotice(unplacedGroups) {
+  const el = document.getElementById("ring-unplaced-notice");
+  el.innerHTML = unplacedGroups.length
+    ? `<div class="notice warn" style="margin-top:12px;">Signed up but not in any family yet: ${unplacedGroups.map((g) => escapeHtml(g.displayName)).join(", ")} — tell me which family these join.</div>`
+    : "";
 }
 
 let lastGroups = [];
@@ -531,13 +714,16 @@ async function loadAndRender() {
   try {
     const responses = await fetchResponses();
     const { groups, unplaced } = groupByCode(responses);
-    const completeGroups = groups.filter((g) => g.members.length === 6);
-    const weight = buildKnownWeights(completeGroups);
-    const ring = buildRing(completeGroups, weight);
-    lastGroups = completeGroups;
-    lastRing = ring;
+    lastGroups = groups;
+    const { familyPlans, unplacedGroups } = buildRingPlan(groups);
+    lastRing = familyPlans
+      .flatMap((fp) => fp.entries)
+      .filter((e) => !e.missing)
+      .map((e) => ({ code: e.code }));
     renderGroups(groups, unplaced);
-    renderRing(completeGroups, ring);
+    renderRingDiagram(familyPlans);
+    renderRingLegend();
+    renderRingUnplacedNotice(unplacedGroups);
   } catch (err) {
     summaryEl.innerHTML = `<div class="notice danger">Couldn't load data (${err.message}).</div>`;
   }
@@ -562,6 +748,7 @@ function exportCSV() {
   lastRing.forEach((entry, idx) => {
     const g = byCode.get(entry.code);
     const members = g.members.slice(0, 6);
+    while (members.length < 6) members.push({ fullName: "", regNumber: "" });
     const row = [idx + 1];
     members.forEach((m) => {
       row.push(m.fullName || "");

@@ -13,6 +13,8 @@
   --ink: #2b2016;
   --muted: #7a6a51;
   --border: #ddccA6;
+  --plum: #6b3f5c;
+  --moss: #5c7a3d;
 }
 
 * { box-sizing: border-box; }
@@ -520,28 +522,6 @@ button.add-row {
 }
 .tag.pending { background: var(--mustard-tint); color: var(--mustard-dark); }
 
-.ring-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-.ring-list li {
-  padding: 8px 10px;
-  border: 2px solid var(--border);
-  border-radius: 8px;
-  margin-bottom: 6px;
-  font-size: 0.9rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: var(--card);
-}
-.ring-list li .bridge {
-  color: var(--burnt-dark);
-  font-size: 0.75rem;
-  font-weight: 700;
-}
-
 .actions-row {
   display: flex;
   gap: 8px;
@@ -579,11 +559,21 @@ button.add-row {
   width: 100%;
   aspect-ratio: 1000 / 620;
 }
+#ring-stage {
+  aspect-ratio: 1 / 1;
+}
 #network-svg {
   display: block;
   width: 100%;
   height: auto;
   aspect-ratio: 1000 / 620;
+  touch-action: none;
+}
+#ring-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1 / 1;
   touch-action: none;
 }
 .edge { stroke: var(--ink); stroke-linecap: round; opacity: 0.28; transition: opacity 0.15s, stroke 0.15s; }
@@ -601,7 +591,38 @@ button.add-row {
 .node-circle.forming { fill: var(--mustard); }
 .node-circle.isolated { fill: var(--card); stroke-width: 2.5; }
 
-#network-labels-layer { position: absolute; inset: 0; pointer-events: none; }
+/* ring diagram: node fill = family, dashed stroke = still forming, missing = not signed up yet */
+.node-circle.fam-1 { fill: var(--burnt); }
+.node-circle.fam-2 { fill: var(--teal); }
+.node-circle.fam-3 { fill: var(--mustard); }
+.node-circle.fam-4 { fill: var(--plum); }
+.node-circle.fam-5 { fill: var(--moss); }
+.node-circle.ring-forming { stroke-dasharray: 5,3; }
+.node-circle.ring-missing { fill: var(--paper); stroke-dasharray: 3,3; }
+.ring-edge { stroke: var(--ink); stroke-width: 2.5; opacity: 0.6; fill: none; transition: opacity 0.15s, stroke 0.15s; }
+.ring-edge.lit { stroke: var(--burnt); opacity: 0.95; }
+.ring-edge.dim { opacity: 0.12; }
+.ring-edge-escape { stroke-dasharray: 7,5; opacity: 0.3; }
+.ring-arrow-head { fill: var(--ink); }
+.ring-arrow-head.lit { fill: var(--burnt); }
+.node-label.ring-missing-label { font-style: italic; color: var(--muted); }
+.cluster-ring { fill: none; stroke: var(--border); stroke-width: 1.5; stroke-dasharray: 3,4; }
+.family-badge {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  background: var(--card);
+  padding: 2px 6px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.line.dashed { border-top-style: dashed; opacity: 0.6; }
+
+#network-labels-layer, #ring-labels-layer { position: absolute; inset: 0; pointer-events: none; }
 .node-label {
   position: absolute;
   transform: translate(-50%, 0);
@@ -668,6 +689,12 @@ button.add-row {
 .dot.teal { background: var(--teal); }
 .dot.mustard { background: var(--mustard); }
 .dot.outline { background: var(--card); }
+.dot.fam-1 { background: var(--burnt); }
+.dot.fam-2 { background: var(--teal); }
+.dot.fam-3 { background: var(--mustard); }
+.dot.fam-4 { background: var(--plum); }
+.dot.fam-5 { background: var(--moss); }
+.dot.ring-missing-dot { background: var(--paper); border-style: dashed; }
 .line { width: 22px; height: 0; border-top: 3px solid var(--ink); opacity: 0.5; display: inline-block; }
 
 footer {

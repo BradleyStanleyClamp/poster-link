@@ -160,11 +160,33 @@
         <p style="color:var(--muted);font-size:0.85rem;">Signed up solo — needs to join or start a group.</p>
         <div id="unplaced-list"></div>
       </div>
-      <div class="card">
+      <div class="card graph-card">
         <h3 style="margin-top:0;">Ring order</h3>
-        <p style="color:var(--muted);font-size:0.85rem;">Spare tickets pass rightward (wrapping back to the top) to the next group that still needs one.</p>
-        <ul class="ring-list" id="ring-list"></ul>
+        <p style="color:var(--muted);font-size:0.85rem;">Families of groups, arranged in a ring. A spare ticket passes in the direction of the arrow to the next group; if that group's already sorted, it keeps going until it finds one that isn't.</p>
+        <div class="graph-stage" id="ring-stage">
+          <svg id="ring-svg" viewBox="0 0 900 900" width="900" height="900" role="img" aria-label="Ring diagram of ticket groups grouped by family, arrows showing the direction a spare ticket passes">
+            <defs>
+              <marker id="ring-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="16" markerHeight="16" markerUnits="userSpaceOnUse" orient="auto">
+                <polygon class="ring-arrow-head" points="0,0 10,5 0,10"></polygon>
+              </marker>
+              <marker id="ring-arrow-lit" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="16" markerHeight="16" markerUnits="userSpaceOnUse" orient="auto">
+                <polygon class="ring-arrow-head lit" points="0,0 10,5 0,10"></polygon>
+              </marker>
+            </defs>
+            <rect id="ring-bg-rect" x="0" y="0" width="900" height="900" fill="transparent"></rect>
+            <g id="ring-edges-layer"></g>
+            <g id="ring-nodes-layer"></g>
+          </svg>
+          <div id="ring-labels-layer"></div>
+        </div>
+        <p class="hint">Click a group to see who it passes to and receives from</p>
+        <div class="legend" id="ring-family-legend"></div>
+        <div id="ring-unplaced-notice"></div>
       </div>
+
+      <aside class="panel" id="ring-detail-panel">
+        <p class="panel-empty">Click a group in the ring above for details.</p>
+      </aside>
     </section>
 
     <section id="view-network" class="view">
