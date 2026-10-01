@@ -489,7 +489,7 @@ const RING_FAMILIES = [
   { name: "Family 3", groups: ["swanfield", "cali road"] },
   { name: "Family 4", groups: ["ruby's group", "emily's group", "nick p's group", "woodys group"] },
   { name: "Family 5", groups: ["noah marshall’s bitches", "harry n's group", "toby smiths crew"] },
-  { name: "Family 6", groups: ["les garçons (mikey and co)", "howies"] },
+  { name: "Family 6", groups: ["les garçons (mikey and co)", "howies", "the gingers"] },
 ];
 
 function buildRingPlan(groups) {
